@@ -236,7 +236,7 @@ donde \general{I} es un identificador para una de las variables del programa. Es
 Para escribir en la salida las instrucciones serán de la forma
 
 \begin{lstlisting}[mathescape=true]
-    read $\langle$Lienzo$\rangle$
+    print $\langle$Lienzo$\rangle$
 \end{lstlisting}
 
 donde \general{Lienzo} debe ser una expresión de tipo \texttt{canvas}.
@@ -307,6 +307,6 @@ La operación de rotación, toma un lienzo y lo rota 90 grados hacia la derecha 
 
 \section{Comentarios}
 
-En \asgrad es posible comentar (ignorar) partes del programa, para ello se usa el símbolo \qt{--} y en el momento que él aparezca se va ignorar todo lo que encuentre hasta el siguiente salto de línea. Es posible que dicho símbolo reaparezca dentro del comentario pero eso no representa ningún problema.
+En \asgrad es posible comentar (ignorar) partes del programa, para ello se usa el símbolo \qt{--} y en el momento que él aparezca se va ignorar todo lo que encuentre a partir de él (incluyéndolo) hasta el siguiente salto de línea. Es posible que dicho símbolo reaparezca dentro del comentario pero eso no representa ningún problema.
 
 \end{document}
