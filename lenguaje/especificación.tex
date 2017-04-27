@@ -310,3 +310,315 @@ La operación de rotación, toma un lienzo y lo rota 90 grados hacia la derecha 
 En \asgrad es posible comentar (ignorar) partes del programa, para ello se usa el símbolo \qt{--} y en el momento que él aparezca se va ignorar todo lo que encuentre a partir de él (incluyéndolo) hasta el siguiente salto de línea. Es posible que dicho símbolo reaparezca dentro del comentario pero eso no representa ningún problema.
 
 \end{document}
+\documentclass[letterpaper,11pt]{article}
+\usepackage[text={6.5in,9in}]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{setspace}
+\usepackage{enumerate}
+\usepackage{xspace}
+
+\newcommand{\asgrad}{AsGRaD\xspace}
+
+\newcommand{\general}[1]{$\langle$\texttt{#1}$\rangle$}
+\newcommand{\ttt}[1]{\texttt{#1}}
+
+\newcommand{\subscript}[2]{#1\textsubscript{#2}}
+
+\newcommand{\qt}[1]{``\texttt{#1}''}
+
+\lstset{
+basicstyle=\small\ttfamily,
+%numbers=left,
+%numberstyle=\scriptsize,
+%numbersep=1pt,
+%belowskip=\medskipamount,
+%frame = trBL,%single,
+%framexleftmargin=15pt,
+showstringspaces=false,
+literate={á}{{\'a}}1 {í}{{\'i}}1 {é}{{\'e}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1,
+}
+
+\setlength{\parskip}{1em}
+
+\begin{document}
+
+\begin{flushleft}
+Universidad Simón Bolívar\\
+Departamento de Computación y Tecnología de la Información\\
+CI3725 - Traductores e Interpretadores\\
+Abril - Julio 2017\\
+\end{flushleft}
+
+\vspace{1em}
+
+\begin{center}
+{\Large
+Interpretador de \asgrad
+}
+\end{center}
+
+\vspace{1em}
+
+\asgrad es un lenguaje de programación imperativo, diseñado para crear y manipular arte ascii. El siguiente es un ejemplo de lo que se podría lograr con este lenguaje:
+
+\vspace{1em}
+
+\begin{center}
+{\setstretch{.5}
+\begin{BVerbatim}
+ ____________________________ 
+|    __  __  __  __  __  __  |
+|   /  |/ _|/ _|/  |/  |/  | |
+|  / _ |__ | /\/  |/ _ |   | |
+| /_//_|__/\__/_/\_\//_|__/  |
+|____________________________|
+
+\end{BVerbatim}
+}
+\end{center}
+
+
+El objetivo del laboratorio de Traductores e Interpretadores, es implementar un interpretador para el lenguaje \asgrad. En el diseño del mismo, se obviaron muchos elementos
+comunes de los lenguajes de programación, como el manejo de estructuras de datos compuestas y procedimientos, pues habrían aumentado la complejidad del lenguaje a implementar por encima del tiempo disponible para su desarrollo.
+
+A continuación se describe el lenguaje \asgrad, el cual desarrollará preferiblemente en equipos de dos personas y en 4 etapas:
+\begin{enumerate}[i]
+  \item Análisis lexicográfico
+  \item Análisis sintáctico y construcción del árbol sintáctico abstracto.
+  \item Análisis de contexto
+  \item Intérprete
+\end{enumerate}
+
+\section{Estructura de un programa en \asgrad}
+
+Un programa en \asgrad tiene la siguiente estructura:
+
+\begin{lstlisting}[mathescape=true]
+    [ using $\langle$Lista de Declaraciones$\rangle$ ]
+    begin
+        $\langle$Lista de Instrucciones$\rangle$
+    end
+\end{lstlisting}
+
+\noindent
+donde las palabras claves \texttt{begin} y \texttt{end} indican el principio y el final del programa respectivamente. Note que los corchetes ``["\ y ``]" no son parte del programa, sino que son utilizados para indicar que lo que encierran es opcional, que en este caso corresponde a la declaración de las variables del programa, precedida por la palabra clave \texttt{using}. Por otra parte, los signos ``$\langle$"\ y ``$\rangle$" son utilizados para indicar que lo que encierran es un componente del programa cuya sintaxis será explicada más adelante.
+
+La $\langle$\texttt{Lista de Declaraciones}$\rangle$ es una lista no vacía que enumera las declaraciones de variables y sus tipos respectivos. Estas definiciones serán utilizadas luego en la \general{Lista de Instrucciones}. Las definiciones de las variables estarán separadas por punto-y-comas (``;") en la lista en cuestión. Cada definición de variable tiene la siguiente forma:
+
+\begin{lstlisting}[mathescape=true]
+    $\langle$Lista de Identificadores$\rangle$ of type $\langle$Tipo$\rangle$
+\end{lstlisting}
+
+
+La $\langle$\texttt{Lista de Identificadores}$\rangle$, es una lista no vacía de identificadores (nombres) de variables separados por coma (``,"). Todas las variables declaradas en este punto tendrán el mismo $\langle$\texttt{Tipo}$\rangle$. Cada identificador estará formado por una letra seguida de cualquier cantidad de letras, dígitos decimales y el caracter guión bajo (``\texttt{\_}''). No se aceptará como identificador de variable secuencias alfabéticas que correspondan a palabras claves utilizadas en la sintaxis de \asgrad (por ejemplo: using, begin, end, etc.) En \asgrad se hace distinción entre mayúsculas y minúsculas, por lo que los identificadores \texttt{abcde} y \texttt{aBcdE} son diferentes; por otro lado, el identificador \texttt{Begin} no es palabra clave.
+
+El lenguaje manejará solamente variables de tipo entero (representados por la palabra clave \texttt{integer}), booleano (representados por la palabra clave \texttt{boolean}) y lienzos (representados por la palabra clave \texttt{canvas}). Las variables toman valores exclusivamente a través de la instrucción de asignación, en un principio no poseen ningún valor. Se considerará un error de ejecución intentar obtener el valor de una variable que no haya sido inicializada.
+
+A continuación se muestra un ejemplo de programa escrito en \asgrad:
+
+\begin{lstlisting}
+    using x, y of type integer; c of type canvas
+    begin
+        x := 10;
+        y := 15;
+        c := <empty>;
+        
+        from 1 to x repeat
+            using d of type canvas
+            begin
+                d := <empty>;
+                
+                with j from 1 to y repeat
+                    if j % 2 = 0 then
+                        d := d : </>
+                    else
+                        d := d : <\>
+                    end
+                end;
+                c := c | d
+            end
+        end;
+        print c
+    end
+\end{lstlisting}
+
+Las partes involucradas en este ejemplo serán explicadas en la siguiente sección.
+
+\section{Instrucciones}
+
+En \asgrad existen un conjunto reducido de instrucciones comparado con otros lenguajes pero fundamentales para cualquiera y es posible tener varias instrucciones en un programa haciendo uso de la secuenciación.
+
+\paragraph{Secuenciación}
+
+La composición secuencial de las instrucciones \general{\subscript{Inst}{0}}, \general{\subscript{Inst}{1}}, \general{\subscript{Inst}{2}}, ..., \general{\subscript{Inst}{n}} es formada insertando el caracter punto-y-coma (``;'') entre las mismas, tomando la forma ``\general{\subscript{Inst}{0}}; \general{\subscript{Inst}{1}}; \general{\subscript{Inst}{2}}; ...; \general{\subscript{Inst}{n}}'' y resultando en una  \textbf{lista de instrucciones}. Cuando se vaya a ejecutar la lista de instrucciones, se iniciará por \general{\subscript{Inst}{0}} y se irán ejecutando sucesivamente hasta \general{\subscript{Inst}{n}}. Es importante destacar que es posible tener una lista con una sola instrucción pero no es posible tener una lista de instrucciones vacía.
+
+\subsection{Asignación}
+
+Una asignación ``\general{I} := \general{E}'' tiene el efecto de evaluar la expresión \general{E} y almacenar el resultado en la variable \general{I}. La variable \general{I} debe haber sido declarada y en caso contrario se dará un mensaje de error. Análogamente, las variables utilizadas en \general{E} deben haber sido declaradas y además haber sido inicializadas previamente a la expresión, sino se dará un mensaje de error. Además, \general{E} debe tener el mismo tipo que la variable \general{I}, en caso contrario se dará un mensaje de error.
+
+\subsection{Condicional}
+
+Las instrucciones condicionales de \asgrad son de la forma
+
+\begin{lstlisting}[mathescape=true]
+    if $\langle$B$\rangle$ then $\langle$LI1$\rangle$ [ else $\langle$LI2$\rangle$ ] end    
+\end{lstlisting}
+
+\noindent
+donde nuevamente es importante notar que los corchetes (``['' y ``]'') son para indicar que lo que éstos encierran es opcional (la rama ``\texttt{else}''). \general{B} es una expresión booleana, \general{LI1} y \general{LI2} son secuencias de instrucciones.
+
+La semántica para esta instrucción es la convencional: se evalúa la expresión booleana \general{B}, si ésta es verdadera, se ejecuta \general{LI1} y, en caso contrario, se ejecuta \general{LI2} (si la rama ``\texttt{else}'' está presente). En caso de que la expresión booleana sea falsa y la rama del ``\texttt{else}'' no se encuentre presente, la instrucción no tendrá efecto alguno, es decir, no se ejecutará ninguna acción.
+
+\subsection{Iteración indeterminada}
+
+Las instrucciones de iteración indeterminada (esto es, con condiciones generales de salida) de \asgrad son de la forma
+
+\begin{lstlisting}[mathescape=true]
+    while $\langle$B$\rangle$ repeat $\langle$LI$\rangle$ end
+\end{lstlisting}
+
+\noindent
+con \general{B} una expresión booleana y \general{LI} una secuencia de instrucciones.
+
+La semántica para esta instrucción es la convencional: se evalúa la expresión \general{B}, si ésta es verdadera, se ejecuta \general{LI} y se vuelve al inicio de la ejecución (preguntando nuevamente por la condición \general{B}) o, en caso contrario, se abandona la ejecución de la iteración.
+
+Como ejemplo, el siguiente programa calcula el máximo común divisor entre dos números:
+
+\begin{lstlisting}
+    using x, y of type integer
+    begin
+        read x;
+        read y;
+        
+        while x /= y repeat
+            if x > y then
+                x := x - y
+            else
+                y := y - x
+            end
+            -- El máximo común divisor ahora está en 'x' y en 'y'.
+        end
+    end
+\end{lstlisting}
+
+\subsection{Iteración determinada}
+
+Las instrucciones de iteración determinada (esto es, con cantidad prefijada de repeticiones) de \asgrad son de la forma
+
+\begin{lstlisting}[mathescape=true]
+    [ with $\langle$I$\rangle$ ] from $\langle$Inf$\rangle$ to $\langle$Sup$\rangle$ repeat $\langle$LI$\rangle$ end
+\end{lstlisting}
+
+\noindent
+con \general{I} un identificador, \general{Inf} (límite inferior) y \general{Sup} (límite superior) expresiones aritméticas y \general{LI} una secuencia de instrucciones.
+
+La ejecución de esta instrucción consiste inicialmente en evaluar las expresiones aritméticas \general{Inf} y \general{Sup}, determinando la cantidad de veces que a continuación se ejecuta \general{LI}; usando la valor resultante de \texttt{max(}\general{Sup} \texttt{-} \general{Inf} \texttt{+ 1, 0)}. En cada iteración la variable que corresponde a \general{I} (de estar presente) cumplirá la función de contador del ciclo obteniendo como valor, al inicio de cada iteración, la cantidad de estas iteraciones cumplidas hasta el momento (en condiciones normales) sumado al límite inferior. Dicha variable le será asignado el resultado de evaluar \general{Inf} antes de comenzar la primera ejecución de \general{LI}, después de terminar dicha ejecución \general{I} tomará el valor de evaluar (\general{I} + 1) antes de la siguiente iteración y así en adelante, hasta llegar al valor obtenido de evaluar la expresión \general{Sup} antes de la última iteración. La variable \general{I} pertenece únicamente a la instrucción de iteración determinada en la que fue definida (en caso de estar definida), por lo que el valor de la misma al momento de salir del ciclo es inexistente.
+
+Note que dentro de \general{LI} estarán prohibidas las asignaciones a la variable representada por \general{I}, ya que si el valor de dicha variable pudiese modificarse dentro de \general{LI} la misma podría perder su rol como contador de la iteración original.
+
+\subsection{Incorporación de alcance}
+
+Una instrucción de incorporación de alcance en \asgrad tiene
+la siguiente estructura
+
+\begin{lstlisting}[mathescape=true]
+    [ using $\langle$Lista de Declaraciones$\rangle$ ]
+    begin
+        $\langle$Lista de Instrucciones$\rangle$
+    end
+\end{lstlisting}
+
+Exactamente la misma estructura que la de un programa, ésta instrucción incorpora las nuevas declaraciones de variables (de existir), las hace visibles y alcanzables únicamente en \general{Lista de Instrucciones}.
+
+\subsection{Entrada y Salida}
+
+\asgrad cuenta con instrucciones que le permiten interactuar con un
+usuario a través de la entrada/salida estándar del sistema de operación (indistinto para muchos sistemas de operación conocidos). Para leer un valor de la entrada las instrucciones serán de la forma
+
+\begin{lstlisting}[mathescape=true]
+    read $\langle$I$\rangle$
+\end{lstlisting}
+
+donde \general{I} es un identificador para una de las variables del programa. Esta variable puede ser solamente de tipo entero o booleano. La instrucción debe saber manejar la entrada en ambos casos.
+
+Para escribir en la salida las instrucciones serán de la forma
+
+\begin{lstlisting}[mathescape=true]
+    print $\langle$Lienzo$\rangle$
+\end{lstlisting}
+
+donde \general{Lienzo} debe ser una expresión de tipo \texttt{canvas}.
+
+
+\section{Expresiones}
+
+Las expresiones están constituidas por variable, valores numéricos, booleanos y operadores. En el caso de una variable, al momento de acceder a su valor, independiente de su tipo, la misma debe haber sido declarada. Partiendo de una expresión \general{E}, de tipo cualquiera, se puede construir la expresión \texttt{(}\general{E}\texttt{)} y ambas van a producir el mismo valor, es decir, evaluar \texttt{(}\general{E}\texttt{)} conlleva a evaluar a \general{E}.
+
+\subsection{Expresiones aritmeticas}
+
+Una expresión aritmética estará formada por números naturales, identificadores de variables y operadores convencionales de aritmética entera. Los operadores a ser considerados serán suma (\qt{+}), resta (\qt{-} binario), multiplicación (\qt{*}), división entera (\qt{/}), resto de división entera o módulo (\qt{\%}) e inverso (\qt{-} unario). Tal como se acostumbra, las expresiones serán construidas con notación infija para los operadores binarios, por ejemplo \texttt{1+2}, y con notación prefija para los operadores unarios, por ejemplo \texttt{-3}. La tabla de precedencia es también la convencional (donde los operadores más fuertes están hacia abajo):
+
+\begin{lstlisting}
+    +, - binarios
+    *, /, %
+    - unario    
+\end{lstlisting}
+
+Se puede utilizar paréntesis para forzar un determinado orden de evaluación. Por tanto, evaluar \texttt{2+3/2} da como resultado \texttt{3}, mientras que evaluar \texttt{(2+3)/2} da \texttt{2}. Los operadores con igual precedencia se evalúan de izquierda a derecha. Por tanto, evaluar \texttt{60/2*3} da \texttt{90}, mientras que evaluar \texttt{60/(2*3)} da \texttt{10}.
+
+
+Expresiones con variables serán evaluadas de acuerdo al valor que éstas tengan en ese momento, para ello se requiere que las mismas hayan sido declaradas y previamente inicializadas. Por ejemplo, la evaluación de \texttt{x+2} da \texttt{5}, si \texttt{x} fue declarada y en su última asignación tomó valor \texttt{3}. Si \texttt{x} no fue declarada o es de un tipo no compatible para la operación, se da un mensaje de error. Este tipo de errores se les llama estáticos, pues pueden ser detectados antes de la ejecución del programa. Si \texttt{x} fue declarada pero no ha sido inicializada previamente, también debe darse un mensaje de error. Este error es dinámico, pues sólo puede ser detectado durante la ejecución del programa.
+
+\subsection{Expresiones booleanas}
+
+Análogamente a las expresiones aritméticas, una expresión booleana estará formada por las constantes \texttt{true} y \texttt{false}, identificadores de variables, y operadores convencionales de lógica booleana. Los operadores a ser considerados serán conjunción (\qt{and}), disyunción (\qt{or}), y negación (\qt{not}). Las expresiones serán construidas con notación infija para los operadores binarios, por ejemplo \texttt{true and false}. Sin embargo, el operador unario \texttt{not} será construido con notación prefija, por ejemplo \texttt{not true}. La tabla de precedencia es también la convencional (donde las operadores más fuertes están hacia abajo):
+
+\begin{lstlisting}
+    or
+    and
+    not    
+\end{lstlisting}
+
+Se puede utilizar paréntesis para forzar un determinado orden de evaluación. Por tanto, evaluar \texttt{true or true and false} da como resultado \texttt{true}, mientras que evaluar \texttt{(true or true) and false} da como resultado \texttt{false}. Los operadores con igual precedencia se evalúan de izquierda a derecha. Aunque en realidad dicho orden es irrelevante.
+
+Expresiones con variables serán evaluadas de acuerdo al valor que éstas tengan en ese momento, para lo cual se requiere que tales variables hayan sido declaradas y previamente inicializadas. Por ejemplo, la evaluación de \texttt{x or false} da \texttt{true} si \texttt{x} fue declarada y en su última asignación tomó valor \texttt{true}. Si \texttt{x} no fue declarada o es de un tipo no compatible para la operación, se da un mensaje de error. Este tipo de errores se les llama estáticos, pues pueden ser detectados antes de la ejecución del programa. Si \texttt{x} fue declarada pero no ha sido inicializada previamente, también debe darse un mensaje de error. Este error sería dinámico, pues sólo puede ser detectado durante la ejecución del programa.
+
+\subsubsection{Operadores relaciones}
+
+\asgrad contará con operadores relacionales que comparan expresiones entre sí. Éstas serán de la forma ``\general{A1} \general{OP} \general{A2}'', donde \general{A1} y \general{A2} son expresiones aritméticas y \general{OP} es un operador relacional. Los operadores relacionales a considerar son: menor (\qt{<}), menor o igual (\qt{<=}), mayor (\qt{>}), mayor o igual (\qt{>=}), igualdad (\qt{=}) y desigualdad (\qt{/=}). También será posible comparar expresiones booleanas bajo la forma ``\general{B1} \general{OP} \general{B2}'' u expresiones sobre lienzos bajo la forma ``\general{L1} \general{OP} \general{L2}'' pero con \general{OP} pudiendo ser únicamente igualdad (\qt{=}) y desigualdad (\qt{/=}).
+
+\subsection{Expresiones sobre lienzo}
+
+Análogamente a las expresiones aritméticas y booleanas, una expresión sobre lienzos estará formada por las constantes \texttt{<empty>}, \ttt{</>}, \ttt{<\textbackslash>}, \ttt{<|>}, \ttt{<\_>} y \ttt{<->}, identificadores de variables y algunos operadores sobre lienzos. Donde el lienzo se puede vislumbrar como una matriz, éste tendría un número determinado de filas y columnas dependiendo de como se haya construido el mismo.
+
+Los operadores a ser considerados serán concatencación horizontal (\qt{:}), concatenación vertical (\qt{|}), rotación (\qt{\$}) y trasposición (\qt{'}). Las expresiones serán construidas con notación infija para los operadores binarios, por ejemplo \ttt{<empty> : </>}. El operador unario de rotación será construido con notación infija, por ejemplo \ttt{\$<->}, mientras que el operador unario de trasposición será construido con notación postfija. La tabla de precedencia será la siguiente (donde las operadores más fuertes están hacia abajo):
+
+\begin{lstlisting}
+    :, |
+    $
+    '
+\end{lstlisting}
+
+Se puede utilizar paréntesis para forzar un determinado orden de evaluación. Los operadores con igual precedencia se evalúan de izquierda a derecha.
+
+Expresiones con variables serán evaluadas de acuerdo al valor que éstas tengan en ese momento, para lo cual se requiere que tales variables hayan sido declaradas y previamente inicializadas. Por ejemplo, la evaluación de \texttt{x : </>} da \texttt{</>} si \ttt{x} fue declarada y en su última asignación tomó valor \texttt{<empty>}. Si \texttt{x} no fue declarada o es de un tipo no compatible para la operación, se da un mensaje de error. Este tipo de errores se les llama estáticos, pues pueden ser detectados antes de la ejecución del programa. Si \texttt{x} fue declarada pero no ha sido inicializada previamente, también debe darse un mensaje de error. Este error sería dinámico, pues sólo puede ser detectado durante la ejecución del programa.
+
+Las operaciones de concatenación de lienzos toman dos lienzos y producen un nuevo lienzo, que es la concatenación (horizontal o vertical) de los mismos. Para que dicha concatenación sea válida, se deben cumplir algunas condiciones:
+
+\begin{itemize}
+    \item Si la concatenación es horizontal, ambos lienzos deben tener la misma dimensión vertical.
+    \item Si la concatenación es vertical, ambos lienzos deben tener la misma dimensión horizontal.
+    \item El lienzo \ttt{<empty>} funciona como elemento neutro para ambas concatenaciones. (No debe tomarse como un lienzo con dimensión horizontal y vertical igual a cero (0), sino mas bien como un lienzo de tamaño genérico, que está vacío en contenido).
+\end{itemize}
+
+La operación de rotación, toma un lienzo y lo rota 90 grados hacia la derecha (en sentido de las agujas del reloj). La operación de trasposición, visualiza un lienzo como una matriz, construye un nuevo lienzo con todo símbolo en la posición $(i, j)$ igual al símbolo en la posición $(j, i)$ del lienzo original, donde $i$ y $j$ representan el índice de la filas y columnas respectivamente.
+
+\section{Comentarios}
+
+En \asgrad es posible comentar (ignorar) partes del programa, para ello se usa el símbolo \qt{--} y en el momento que él aparezca se va ignorar todo lo que encuentre a partir de él (incluyéndolo) hasta el siguiente salto de línea. Es posible que dicho símbolo reaparezca dentro del comentario pero eso no representa ningún problema.
+
+\end{document}
