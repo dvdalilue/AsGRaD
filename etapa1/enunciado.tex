@@ -1,0 +1,266 @@
+\documentclass[letterpaper,10pt]{article}
+\usepackage[text={6.5in,9in}]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{setspace}
+\usepackage{enumerate}
+\usepackage{footmisc}
+\usepackage{xspace}
+
+\usepackage{xpatch}
+
+\begingroup\lccode`~=`"
+\lowercase{\endgroup
+  \xapptocmd\ttfamily{\let~"}{}{}
+}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
+\newcommand{\asgrad}{AsGRaD\xspace}
+
+\newcommand{\general}[1]{$\langle$\texttt{#1}$\rangle$}
+\newcommand{\ttt}[1]{\texttt{#1}}
+
+\newcommand{\subscript}[2]{#1\textsubscript{#2}}
+
+\newcommand{\qt}[1]{``\texttt{#1}''}
+
+
+\lstset{
+basicstyle=\small\ttfamily,
+%numbers=left,
+%numberstyle=\scriptsize,
+%numbersep=1pt,
+%belowskip=\medskipamount,
+%frame = trBL,%single,
+%framexleftmargin=15pt,
+showstringspaces=false,
+literate={á}{{\'a}}1 {í}{{\'i}}1 {é}{{\'e}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1,
+}
+
+\setlength{\parskip}{1em}
+
+\begin{document}
+
+\begin{flushleft}
+{\small
+Universidad Simón Bolívar\\
+Departamento de Computación y Tecnología de la Información\\
+CI3725 - Traductores e Interpretadores\\
+Abril - Julio 2017\\
+}
+\end{flushleft}
+
+\vspace{1em}
+
+\begin{center}
+{\Large
+\textsc{Analizador Lexicográfico de \asgrad}
+}
+\end{center}
+
+\vspace{1em}
+
+\section{Introducción}
+
+En este documento se especifican los requerimientos necesarios para la primera entrega en el desarrollo de su intérprete de \asgrad. Aquí no estarán presente características del lenguaje, sintaxis o ningún tipo de especificación. Principalmente se desea que Ud. desarrolle una analizador lexicográfico usando el lenguaje que haya elegido, ya sea \ttt{Java}, \ttt{Ruby} o \ttt{Haskell}, junto a su respectiva herramienta generadora de \textit{lexer}; en caso de que exista.
+
+\begin{itemize}
+    \item La versión de \ttt{Java} con la que se corregirá será 1.7.0
+        \begin{itemize}
+            \item JFlex (http://www.jflex.de/)
+        \end{itemize}
+    \item La versión de \ttt{Ruby} con la que se corregirá será 2.1.5.
+        \begin{itemize}
+            \item Expresiones regulares que provee el lenguaje
+        \end{itemize}
+    \item La versión de \ttt{Haskell} con la que se corregirá será 7.8.4.
+        \begin{itemize}
+            \item Alex (https://www.haskell.org/alex/)
+        \end{itemize}
+\end{itemize}
+
+\noindent
+Además habrá una breve revisión de los conceptos y métodos teórico-prácticos relevantes.
+
+Su programa debe ejecutarse con el comando \texttt{./asgrad dirección/al/archivo.grd} desde la linea de comandos. Sólo habrá un argumento en la misma, el cual será la ruta de un archivo, y dará como salida los \textit{tokens} reconocidos. En el caso de que un conjunto de caracteres no sea reconocido como \textit{token}, se debe mostrar un error de una palabra desconocido.
+
+\section{\textit{Tokens}}
+
+Un \textit{token} es una cadena de caracteres que lleva consigo un significado, información que será usada en la siguientes etapas. El nombre de los \textit{tokens} debe seguir el estilo de escritura para frases compuestas llamado \textit{UpperCamelCase}, donde cada palabra en una frase siempre comienza en mayúscula y todos los nombres llevan \ttt{Tk} de prefijo; e.g. \ttt{TkBegin}. Los \textit{tokens} a reconocer son los siguientes:
+
+\begin{itemize}
+    \item Palabras reservadas: estas son cada una de las palabras usadas en la sintaxis de \asgrad, i.e \ttt{using}, \ttt{integer}, \ttt{repeat}, \ttt{and}, etc. Los \textit{tokens} deberán llamarse \ttt{Tk}\general{Palabra clave}.
+    \item Identificadores de variables: los identificadores corresponderán a un único \textit{token} llamado \texttt{TkIdent}. Este \textit{token} siempre tendrá asociado como atributo el identificador particular reconocido. e.g. al leer \texttt{contador}, se dará como salida \texttt{TkIdent("contador")}.
+    \item Literales numéricos: serán secuencias no-vacías de dígitos decimales. Al igual que los identificadores, éstos serán agrupados bajo el \textit{token} \texttt{TkNumber}. Este \textit{token} tendrá como atributo al número reconocido, e.g. \texttt{TkNumber(27)}.
+    \item Literales booleanos: estos estarán representados por dos \textit{tokens}. Uno de ellos para \texttt{true} (\texttt{TkTrue}) y otro para \texttt{false} (\texttt{TkFalse}).
+    \item Constantes de lienzo
+        \begin{itemize}
+            \item[] \makebox[4em]{\texttt{<empty>}\hfill}  - \texttt{TkConstEmpty}
+            \item[] \makebox[4em]{\texttt{</>} \hfill} - \texttt{TkConstSlash}
+            \item[] \makebox[4em]{\texttt{<\textbackslash>}\hfill}  - \texttt{TkConstBSlash}
+            \item[] \makebox[4em]{\texttt{<|>} \hfill} - \texttt{TkConstBarraVertical}
+            \item[] \makebox[4em]{\texttt{<\_>}\hfill}  - \texttt{TkConstGuionBajo}
+            \item[] \makebox[4em]{\texttt{<->} \hfill} - \texttt{TkConstGuion}
+        \end{itemize}
+    \item Símbolos separadores
+        \begin{itemize}
+            \item[] \texttt{","} - \texttt{TkComa}
+            \item[] \texttt{";"} - \texttt{TkPuntoYComa}
+            \item[] \texttt{"("} - \texttt{TkParAbre}
+            \item[] \texttt{")"} - \texttt{TkParCierra}
+        \end{itemize}
+    \item Operadores
+        \begin{itemize}
+            \item[] \makebox[3em]{\texttt{"+"} \hfill}  - \texttt{TkMas}
+            \item[] \makebox[3em]{\texttt{"-"} \hfill}  - \texttt{TkMenos}
+            \item[] \makebox[3em]{\texttt{"*"} \hfill}  - \texttt{TkMult}
+            \item[] \makebox[3em]{\texttt{"/"} \hfill}  - \texttt{TkDiv}
+            \item[] \makebox[3em]{\texttt{"\%"} \hfill} - \texttt{TkMod}
+            \item[] \makebox[3em]{\texttt{"and"}\hfill} - \texttt{TkAnd}\footnote[2]{\label{note1}Operador que a su vez es una palabra reservada}
+            \item[] \makebox[3em]{\texttt{"or"}\hfill}  - \texttt{TkOr}$^{\ref{note1}}$
+            \item[] \makebox[3em]{\texttt{"not"}\hfill} - \texttt{TkNot}$^{\ref{note1}}$
+            \item[] \makebox[3em]{\texttt{"<"} \hfill}  - \texttt{TkMenor}
+            \item[] \makebox[3em]{\texttt{"<="} \hfill} - \texttt{TkMenorIgual}
+            \item[] \makebox[3em]{\texttt{">"}\hfill}   - \texttt{TkMayor}
+            \item[] \makebox[3em]{\texttt{">="}\hfill}  - \texttt{TkMayorIgual}
+            \item[] \makebox[3em]{\texttt{"="} \hfill}  - \texttt{TkIgual}
+            \item[] \makebox[3em]{\texttt{"/="} \hfill} - \texttt{TkDesigual}
+            \item[] \makebox[3em]{\texttt{":"} \hfill}  - \texttt{TkConcatH}
+            \item[] \makebox[3em]{\texttt{"|"} \hfill}  - \texttt{TkConcatV}
+            \item[] \makebox[3em]{\texttt{"\$"} \hfill} - \texttt{TkRotacion}
+            \item[] \makebox[3em]{\texttt{"'"} \hfill}  - \texttt{TkTrasponsicion}
+        \end{itemize}
+    \item Símbolo de asignación: \texttt{":="}, será representado por el \textit{token} \texttt{TkAsignacion}.
+\end{itemize}
+
+Los espacios en blanco, tabuladores y saltos de línea deben ser ignorados. Así mismo, los comentarios no deben ser reconocidos como tokens, sino ser ignorados de igual forma. Cualquier otro caracter será reportado como error. A continuación se muestra un ejemplo de una un programa y su salida correspondiente.
+
+\newpage
+
+\textbf{Programa:}
+
+\begin{lstlisting}
+    using x, y of type integer
+    begin
+        x := 10;
+        y := 15;
+        
+        from 1 to x repeat
+            y := y + 1
+        end
+    end
+\end{lstlisting}
+
+\textbf{Salida:}
+
+\begin{lstlisting}
+    TkUsing
+    TkIdent("x")
+    TkComa
+    TkIdent("y")
+    TkOf
+    TkType
+    TkInteger
+    TkBegin
+    TkIdent("x")
+    TkAsignacion
+    TkNumber(10)
+    TkPuntoYComa
+    TkIdent("y")
+    TkAsignacion
+    TkNumber(15)
+    TkPuntoYComa
+    TkFrom
+    TkNumber(1)
+    TkTo
+    TkIdent("x")
+    TkRepeat
+    TkIdent("y")
+    TkAsignacion
+    TkIdent("y")
+    TkMas
+    TkNumber(1)
+    TkEnd
+    TkEnd
+\end{lstlisting}
+
+Su analizador lexicográfico debe reportar todos los errores léxicos, en caso de haberlos. Cuando algún error es encontrado, los tokens se hacen irrelevantes, ya que no corresponde a un programa válido; por lo que no deberán ser mostrados. Los errores deben mostrarse con el siguiente formato
+
+\begin{lstlisting}[mathescape=true]
+    Error: Caracter inesperado $\langle$caracter$\rangle$ en la fila $\langle$fila$\rangle$, columna $\langle$columna$\rangle$
+\end{lstlisting}
+
+\noindent
+a continuación se muestra una salida con errores partiendo de un programa inválido.
+
+\begin{lstlisting}
+    using x of type integer
+    begin
+        x ! 3
+    end?
+\end{lstlisting}
+
+\begin{lstlisting}
+    Error: Caracter inesperado "!" en la fila 3, columna 7
+    Error: Caracter inesperado "?" en la fila 4, columna 4
+\end{lstlisting}
+
+\subsection{Representación de los \textit{tokens}}
+
+Es importante notar que cada \textit{token} producido por su analizador lexicográfico debe corresponder a un tipo de dato, independiente del lenguaje, y no simplemente ser impreso a la salida estándar. Esto a modo de poder suministrarlos luego como información para el analizador sintáctico (a implementar en la segunda parte de este proyecto). De esta forma, usted deberá implementar un programa principal que invoque al analizador lexicográfico y sea luego el que imprima a la salida estándar la representación como texto de los tokens encontrados.
+
+\subsubsection{Ubicación}
+
+Es necesario mantener un contador de la linea y la columna para poder asignar la ubicación para cada \textit{token} dentro del programa, es decir, la posición en el programa es una propiedad inherente del \texttt{token}. Esto es en futuras ocasiones como en el análisis sintáctico y de contexto; ambos contadores comienzan a partir de 1.
+
+\section{Revisión teórico-práctica}
+
+\begin{enumerate}
+    \item Dé tres expresiones regulares $E1$, $E2$ y $E3$ que correspondan al reconocimiento de la palabra reservada \texttt{if}, de la palabra reservada \texttt{integer} y de identificadores respectivamente.
+    
+    \item Dé los diagramas de transición (i.e. representación gráfica) de tres autómatas finitos (posiblemente no-deterministas) $M1$, $M2$ y $M3$ que reconozcan a los lenguajes denotados por $E1$, $E2$ y $E3$ respectivamente. Esto corresponde al paso (1) del algoritmo $A$, con $Ri'$ y $Ri$ refiriéndose a nuestras $Ei$.
+    
+    \item Construya un autómata finito no-determinista $M$ que reconozca a la unión de los lenguajes $L(M1)$, $L(M2)$ y $L(M3)$, tal como se indica en el paso (2) de $A$.
+    
+    \item Note que, a efectos de implementar un analizador lexicográfico, es importante que el autómata $M$ sepa reportar a cuál de los tres lenguajes pertenece cada palabra que él reconozca. Esto significa que $M$ debe poder identificar a cuál de los tres lenguajes corresponde cada estado final. Indique a que lenguaje corresponde cada uno de los estados finales de su autómata $M$.
+    
+    \item La asignación de estados finales a lenguajes de su respuesta a la pregunta 4 debe crear conflictos, pues hay elementos que pertenecen a más de uno de los tres lenguajes $L(M1)$, $L(M2)$ y $L(M3)$. Cada conflicto corresponde a una palabra $w$ que pertenece a más de un lenguaje, digamos $L_x$ y $L_y$, la cual tendrá más de una ``vía de reconocimiento'' en $M$. Estas vías deben terminar en estados finales asociados a los distintos lenguajes correspondientes, i.e. $L_x$ y $L_y$. Indique cuáles son los conflictos de su autómata $M$, especificando las palabras que los generan, y los lenguajes y estados finales involucrados.
+    
+    \item Construya un autómata finito determinístico $M_{det}$ equivalente a $M$, i.e. que reconozca el mismo lenguaje que $M$ (viz. $L(M1) \cup L(M2) \cup L(M3)$). Esto corresponde al paso (3) de $A$.
+    
+    \item ¿Cómo se reflejan los conflictos de su respuesta a la pregunta 5 en su autómata $M_{det}$?
+    
+    \item Los conflictos deben ser resueltos mediante un orden lineal que priorice a los lenguajes involucrados. En nuestro caso, establecemos que el orden de prioridad viene dado por la secuencia $\langle L(E1), L(E2), L(E3)\rangle$ de manera decreciente, i.e. el primer lenguaje tiene más prioridad que los otros dos y el segundo más que el tercero. De acuerdo a esto, asocie un lenguaje (solo uno) a cada estado final de $M_{det}$ tal como lo hizo en la pregunta 4 para $M$.
+    
+    \item Tal como se indica en el paso (4) de A, construya un autómata finito determinístico mínimo $M_{min}$ equivalente a $M$ (y, por tanto, también equivalente a $M_{det}$). Explique por qué se debe usar la partición inicial de estados especificada en el paso (4) de A, e indique a cuál de los tres lenguajes corresponde cada estado final de $M_{min}$.
+    
+    \item ¿Cómo relaciona Ud. el desarrollo de las preguntas 1-9 a la implementación de su analizador lexicográfico construido con la herramienta escogida?
+\end{enumerate}
+
+\section{Entrega}
+
+La entrega será hasta el día \textbf{jueves 11 de mayo}, hora máxima \textbf{11:59pm}. La misma debe enviarse a los responsables del laboratorio:
+
+\begin{itemize}
+    \item[]  \makebox[9em]{David Lilue.\hfill} \ttt{dvdalilue@gmail.com}
+    \item[]  \makebox[9em]{Carlos Ferreira.\hfill} \ttt{cferreira6594@gmail.com}
+    \item[]  \makebox[9em]{Rubmary Rojas.\hfill} \ttt{rubmaryrojas@gmail.com }
+    \item[]  \makebox[9em]{Carlos Infante.\hfill} \ttt{carlosinfante1220@gmail.com }
+\end{itemize}
+
+Es un requerimiento usar \textbf{[CI3725]} como prefijo en el asunto y junto al correo, un archivo comprimido \texttt{.tar.gz} o \texttt{.tar.bz2} (no puede ser \texttt{.zip} o \texttt{.rar}). Siguiendo los siguientes lineamientos.
+
+\begin{itemize}
+    \item El comprimido sólo debe tener los archivos fuentes necesarios para correr su programa, un archivo \texttt{makefile} en caso de ser conveniente, un breve informe explicando la formulación/implementación de su analizador lexicográfico y justificando todo aquello que Ud. considere necesario. Además el informe debe contener sus respuestas de la revisión teórico-práctica.
+    \item Buenas prácticas de programación, así como uso adecuado del lenguaje que escoja.
+    \item Todo archivo debe estar completo y correctamente documentado usando la herramienta respectiva para el lenguaje que haya escogido.
+    \item El comprimido debe tener como nombre \texttt{CI3725\_etapa\_1\_xx-xxxxx\_xx-xxxxx.tar.gz} donde
+\texttt{xx-xxxxx} será sustituido por el carné de los miembros del grupo. Si la entrega es realizada por alguien que no tiene pareja, el nombre del comprimido será \texttt{CI3725\_etapa\_1\_xx-xxxxx.tar.gz}.
+\end{itemize}
+
+\end{document}
